@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Donation Traceability DApp</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f6f9;
+      padding: 20px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+
+    .nav {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .nav button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .nav button:hover {
+      background: #45a049;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      margin: auto;
+      width: 400px;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    input, select {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    button.action {
+      width: 95%;
+      padding: 10px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button.action:hover {
+      background: #1976D2;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      background: #fff;
+      margin: 10px auto;
+      padding: 10px;
+      width: 500px;
+      border-radius: 8px;
+      box-shadow: 0px 0px 5px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>Donation Traceability System</h2>
+
+<div class="nav">
+  <button onclick="showPage('connectPage')">Connect</button>
+  <button onclick="showPage('donatePage')">Donate</button>
+  <button onclick="showPage('viewPage')">View Donations</button>
+</div>
+
+<!-- CONNECT -->
+<div id="connectPage" class="card">
+  <button class="action" onclick="connectWallet()">Connect Wallet</button>
+  <p id="account"></p>
+</div>
+
+<!-- DONATE -->
+<div id="donatePage" class="card" style="display:none;">
+  <h3>Send Donation</h3>
+
+  <select id="receiverDropdown"></select>
+
+  <input type="text" id="message" placeholder="Message">
+  <input type="text" id="amount" placeholder="Amount in ETH">
+
+  <button class="action" onclick="sendDonation()">Donate</button>
+</div>
+
+<!-- VIEW -->
+<div id="viewPage" style="display:none;">
+  <div class="card">
+    <h3>All Donations</h3>
+    <button class="action" onclick="getDonations()">Load Donations</button>
+  </div>
+
+  <ul id="donationList"></ul>
+</div>
+
+<script>
+let web3;
+let contract;
+let account;
+
+const contractAddress = "0x3e15B270eB3AaFe5bd854911976bC6ff33C8f2a2";
+
+// 🔴 USE UPDATED ABI WITH getAllOrgs
+const abi = [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "donations",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "donor",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "orgAddresses",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "orgNames",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "trustedOrgs",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_org",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "addTrustedOrg",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_message",
+          "type": "string"
+        }
+      ],
+      "name": "donate",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function",
+      "payable": true
+    },
+    {
+      "inputs": [],
+      "name": "getDonations",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "donor",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "receiver",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "message",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct Donation.DonationDetails[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_org",
+          "type": "address"
+        }
+      ],
+      "name": "getOrgName",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [],
+      "name": "getAllOrgs",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    }
+  ];
+function showPage(pageId) {
+  document.getElementById("connectPage").style.display = "none";
+  document.getElementById("donatePage").style.display = "none";
+  document.getElementById("viewPage").style.display = "none";
+
+  document.getElementById(pageId).style.display = "block";
+}
+
+async function connectWallet() {
+  web3 = new Web3(window.ethereum);
+  const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  account = accounts[0];
+
+  document.getElementById("account").innerText = "Connected: " + account;
+
+  contract = new web3.eth.Contract(abi, contractAddress);
+
+  loadOrganizations();
+}
+
+// 🔥 LOAD ORGS
+async function loadOrganizations() {
+  let dropdown = document.getElementById("receiverDropdown");
+  dropdown.innerHTML = "<option>Select Organization</option>";
+
+  let addresses = await contract.methods.getAllOrgs().call();
+
+  for (let addr of addresses) {
+    let name = await contract.methods.getOrgName(addr).call();
+
+    let option = document.createElement("option");
+    option.value = addr;
+    option.text = name;
+
+    dropdown.appendChild(option);
+  }
+}
+
+async function sendDonation() {
+  const receiver = document.getElementById("receiverDropdown").value;
+  const message = document.getElementById("message").value;
+  const amount = document.getElementById("amount").value;
+
+  await contract.methods.donate(receiver, message).send({
+    from: account,
+    value: web3.utils.toWei(amount, "ether")
+  });
+
+  alert("Donation successful!");
+}
+
+async function getDonations() {
+  let donations = await contract.methods.getDonations().call();
+  let list = document.getElementById("donationList");
+
+  list.innerHTML = "";
+
+  for (let d of donations) {
+    let name = await contract.methods.getOrgName(d.receiver).call();
+
+    let item = document.createElement("li");
+    item.innerText =
+      "Donor: " + d.donor +
+      " | Org: " + name +
+      " | Amount: " + web3.utils.fromWei(d.amount, "ether") + " ETH";
+
+    list.appendChild(item);
+  }
+}
+</script>
+
+</body>
+</html>
